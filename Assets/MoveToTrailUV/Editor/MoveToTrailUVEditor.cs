@@ -27,6 +27,29 @@ public class MoveToTrailUVEditor : Editor
         InitializeEditor(false);
         serializedObject.ApplyModifiedProperties();
     }
+
+    private void OnDisable()
+    {
+        serializedObject.Update(); // 최신 상태 반영
+        // 모든 재질의 _MoveToMaterialUV 값을 0으로 리셋.
+        // 이렇게 하는 이유? 셰이더 프로퍼티에 존재하지 않더라도 경우에 따라 재질의 Saved Property에 존재할 수 있어서 자꾸 Dirty 상태가 됨. 셰이더나 셰이더그래프에서 한 번이라도 인스펙터에 Expose 되면 재질에는 프로퍼티가 저장됨.
+        // 이렇게 해도 Saved Property가 존재하면 사용자 조작에 따라서 Dirty 되는 경우를 피할 수 없음. 유니티 API에서 재질의 Saved Property에 접근하는 방법을 아직 알아내지 못함.
+        for (int i = 0; i < m_materialData_sp.arraySize; i++)
+        {
+            SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
+            Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
+            if (renderer != null)
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat != null)
+                {
+                    mat.SetFloat(m_shaderPropertyID_sp.intValue, 0f);
+                }
+            }
+        }
+        //serializedObject.ApplyModifiedProperties(); // 재질 변경만 하므로 ApplyModifiedProperties는 안해도 됨
+    }
+
     public override void OnInspectorGUI()
     {
         serializedObject.Update();

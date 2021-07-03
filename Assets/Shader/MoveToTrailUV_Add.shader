@@ -62,7 +62,6 @@ Shader "MoveToTrailUV/MoveToTrailUV_Add"
 					half _MoveToMaterialUV;
 				CBUFFER_END
 
-
 				Varyings vert(Attributes IN)
 				{
 					Varyings o;
