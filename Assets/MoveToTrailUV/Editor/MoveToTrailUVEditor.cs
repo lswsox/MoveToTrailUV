@@ -74,18 +74,44 @@ public class MoveToTrailUVEditor : Editor
             EditorGUILayout.PropertyField(m_shaderPropertyName_sp);
             EditorGUILayout.PropertyField(m_materialData_sp);
         }
-        if(EditorGUI.EndChangeCheck())
+        if (EditorGUI.EndChangeCheck())
         {
             Undo.RecordObject(target, "MoveToTrailUV changed");
             InitializeEditor(true);
         }
-        
+
+        SyncFromMaterialTiling(); // 순서 중요. serializedObject.ApplyModifiedProperties() 이전에 사용
         serializedObject.ApplyModifiedProperties();
         //base.OnInspectorGUI();
     }
 
+    // 같은 오브젝트에 트레일과 MoveToTrailUV 스크립트가 같이 적용될 경우 재질의 Tiling이 스크립트의 UV Tiling에 반영이 안되는 것을 검사하고 반영한다.
+    private void SyncFromMaterialTiling()
+    {
+        if (m_materialData_sp.serializedObject.targetObject == null || m_materialData_sp.arraySize == 0)
+            return;
+
+        for (int i = 0; i < m_materialData_sp.arraySize; i++)
+        {
+            SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
+            Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
+            if (renderer != null)
+            {
+                Material mat = renderer.sharedMaterial;
+                if (mat != null)
+                {
+                    float matTiling = mat.mainTextureScale.x;
+                    if (materialData_sp.FindPropertyRelative("m_uvTiling").floatValue != matTiling)
+                    {
+                        materialData_sp.FindPropertyRelative("m_uvTiling").floatValue = matTiling;
+                    }
+                }
+            }
+        }
+    }
+
     // 에디터용 초기화 함수. Undo 등의 상황을 위해
-    public void InitializeEditor(bool valueChanged)
+    private void InitializeEditor(bool valueChanged)
     {
         if (m_materialData_sp.serializedObject.targetObject == null || m_materialData_sp.arraySize == 0)
             return;
