@@ -64,8 +64,7 @@ public class MoveToTrailUVEditor : Editor
     // 에디터용 초기화 함수. Undo 등의 상황을 위해
     public void InitializeEditor(bool valueChanged)
     {
-        // m_mttuv.m_materialData == null 이것을 SerializedProperty로 체크하는 것 검토해야함
-        if (m_mttuv.m_materialData == null || m_materialData_sp.arraySize == 0)
+        if (m_materialData_sp.serializedObject.targetObject == null || m_materialData_sp.arraySize == 0)
             return;
 
         m_shaderPropertyID_sp.intValue = Shader.PropertyToID(m_shaderPropertyName_sp.stringValue);

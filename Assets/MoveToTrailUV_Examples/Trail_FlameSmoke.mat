@@ -80,7 +80,7 @@ Material:
     - _MainTexVFadePow: 2
     - _Metallic: 0
     - _Mode: 0
-    - _MoveToMaterialUV: 0.0775
+    - _MoveToMaterialUV: 0.99556935
     - _Multiplier: 4
     - _OcclusionStrength: 1
     - _OffSetFactor: 0
