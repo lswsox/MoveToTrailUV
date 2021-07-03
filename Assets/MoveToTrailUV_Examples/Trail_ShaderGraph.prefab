@@ -50,7 +50,7 @@ MonoBehaviour:
   m_materialData:
   - m_renderer: {fileID: 1150839975294158525}
     m_material: {fileID: 2100000, guid: b4df1ab0316aa914c88989b7f2c0b1ab, type: 2}
-    m_uvTiling: 0.06
+    m_uvTiling: 0.21
     m_move: 0
 --- !u!96 &1150839975294158525
 TrailRenderer:
@@ -93,7 +93,7 @@ TrailRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Time: 1.3
+  m_Time: 3
   m_Parameters:
     serializedVersion: 3
     widthMultiplier: 2.7
@@ -102,9 +102,9 @@ TrailRenderer:
       m_Curve:
       - serializedVersion: 3
         time: 0
-        value: 0.28861237
+        value: 0.39416063
         inSlope: 0.42028603
-        outSlope: 0.71138763
+        outSlope: 0.6058394
         tangentMode: 69
         weightedMode: 0
         inWeight: 0.33333334
@@ -112,7 +112,7 @@ TrailRenderer:
       - serializedVersion: 3
         time: 1
         value: 1
-        inSlope: 0.71138763
+        inSlope: 0.6058394
         outSlope: 0.699223
         tangentMode: 69
         weightedMode: 0
