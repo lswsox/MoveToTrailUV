@@ -279,11 +279,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_moveObject: {fileID: 3841384982787575142}
   m_shaderPropertyName: _MoveToMaterialUV
-  m_shaderPropertyID: 969
+  m_shaderPropertyID: 655
   m_materialData:
-  - m_renderer: {fileID: 1893065722960749156}
-    m_material: {fileID: 2100000, guid: 72c6ba6c8107ae645a26836ccb8b053f, type: 2}
-    m_uvTiling: 0.06
+  - m_trailRenderer: {fileID: 1893065722960749156}
+    m_uvTiling: {x: 0.06, y: 0.4}
     m_move: 0
 --- !u!199 &7872313114495814224
 ParticleSystemRenderer:

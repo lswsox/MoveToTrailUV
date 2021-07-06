@@ -5,17 +5,21 @@ using UnityEditor;
 [CustomEditor(typeof(MoveToTrailUV))][CanEditMultipleObjects]
 public class MoveToTrailUVEditor : Editor
 {
+    // 초기에 상황에 맞게 똑똑한 Sync 방향을 할 수 있도록 했었으나
+    // 재질의 타일링 값과 Material Data의 타일링 값을 바꿔도 잘 작동하며, Revert라던가, 렌더러 변경 등 다양한 예외상황을 모두 코딩으로 하려나 너무 지저분해져서
+    // 작업자가 수동으로 Sync 방향을 정하도록 함.
+    // 기능 봉인 // SerializedProperty m_overrideMaterial_sp; // 디폴트로는 재질 값이 우선하지만, 이 체크를 켜면 Material Data의 값이 우선하여 재질의 타일링을 덮어쓴다.
+
     SerializedProperty m_moveObject_sp;
     SerializedProperty m_shaderPropertyName_sp;
     SerializedProperty m_shaderPropertyID_sp;
     SerializedProperty m_materialData_sp;
 
-    private Renderer[] m_renderersBefore; // 프로퍼티의 변경사항이 렌더러 변경인지를 체크하기 위한 백업 렌더러 배열
-
     private MoveToTrailUV m_mttuv;
-    
+
     private void OnEnable()
     {
+        // 기능 봉인 // m_overrideMaterial_sp = serializedObject.FindProperty("m_overrideMaterial");
         m_moveObject_sp = serializedObject.FindProperty("m_moveObject");
         m_shaderPropertyName_sp = serializedObject.FindProperty("m_shaderPropertyName");
         m_shaderPropertyID_sp = serializedObject.FindProperty("m_shaderPropertyID");
@@ -24,7 +28,7 @@ public class MoveToTrailUVEditor : Editor
         m_mttuv = target as MoveToTrailUV;
         
         serializedObject.Update();
-        InitializeEditor(false);
+        InitializeEditor();
         serializedObject.ApplyModifiedProperties();
     }
 
@@ -36,11 +40,11 @@ public class MoveToTrailUVEditor : Editor
         // 이렇게 해도 Saved Property가 존재하면 사용자 조작에 따라서 Dirty 되는 경우를 피할 수 없음. 유니티 API에서 재질의 Saved Property에 접근하는 방법을 아직 알아내지 못함.
         for (int i = 0; i < m_materialData_sp.arraySize; i++)
         {
-            SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
-            Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
-            if (renderer != null)
+            SerializedProperty materialDataElement_sp = m_materialData_sp.GetArrayElementAtIndex(i);
+            TrailRenderer trailRenderer = (TrailRenderer)materialDataElement_sp.FindPropertyRelative("m_trailRenderer").objectReferenceValue;
+            if (trailRenderer != null)
             {
-                Material mat = renderer.sharedMaterial;
+                Material mat = trailRenderer.sharedMaterial;
                 if (mat != null)
                 {
                     mat.SetFloat(m_shaderPropertyID_sp.intValue, 0f);
@@ -53,7 +57,6 @@ public class MoveToTrailUVEditor : Editor
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
-
         int checkTrailRenderertile = CheckTrailRendererTile();
         if (checkTrailRenderertile != -1)
         {
@@ -67,9 +70,9 @@ public class MoveToTrailUVEditor : Editor
             EditorGUILayout.HelpBox(checkTrailRendererShader, MessageType.Warning);
         }
 
-
         EditorGUI.BeginChangeCheck();
         {
+            // 기능 봉인 // m_overrideMaterial_sp.boolValue = EditorGUILayout.ToggleLeft(new GUIContent("Override Material", "UV Tiling 값을 어디에서 수정할지 방향을 결정합니다. 체크를 켜면 Move To Trail UV 컴포넌트의 UV Tiling 값이 우선하게 되고, 체크를 끄면 재질의 UV Tiling 값이 우선하게 됩니다."), m_overrideMaterial_sp.boolValue); // ToggleLeft를 사용하기 위해 boolValue 사용
             EditorGUILayout.PropertyField(m_moveObject_sp);
             EditorGUILayout.PropertyField(m_shaderPropertyName_sp);
             EditorGUILayout.PropertyField(m_materialData_sp);
@@ -77,33 +80,41 @@ public class MoveToTrailUVEditor : Editor
         if (EditorGUI.EndChangeCheck())
         {
             Undo.RecordObject(target, "MoveToTrailUV changed");
-            InitializeEditor(true);
+            InitializeEditor(); // 뭔가 변화가 생기면 초기화
         }
 
-        SyncFromMaterialTiling(); // 순서 중요. serializedObject.ApplyModifiedProperties() 이전에 사용
+        for (int i = 0; i < m_materialData_sp.arraySize; i++)
+        {
+            SerializedProperty materialDataElement_sp = m_materialData_sp.GetArrayElementAtIndex(i);
+            SyncElementTiling(materialDataElement_sp); // 별다른 변화가 없으면 수시로 재질과 동기화
+        }
         serializedObject.ApplyModifiedProperties();
         //base.OnInspectorGUI();
     }
 
-    // 같은 오브젝트에 트레일과 MoveToTrailUV 스크립트가 같이 적용될 경우 재질의 Tiling이 스크립트의 UV Tiling에 반영이 안되는 것을 검사하고 반영한다.
-    private void SyncFromMaterialTiling()
+    private void SyncElementTiling(SerializedProperty materialDataElement_sp) // 재질의 타일링만 동기화
     {
-        if (m_materialData_sp.serializedObject.targetObject == null || m_materialData_sp.arraySize == 0)
-            return;
-
-        for (int i = 0; i < m_materialData_sp.arraySize; i++)
+        TrailRenderer trailRenderer = (TrailRenderer)materialDataElement_sp.FindPropertyRelative("m_trailRenderer").objectReferenceValue;
+        // 렌더러가 존재하면
+        if (trailRenderer != null)
         {
-            SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
-            Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
-            if (renderer != null)
+            // 렌더러가 사용하는 재질 Get
+            Material mat = trailRenderer.sharedMaterial;
+            if (mat != null)
             {
-                Material mat = renderer.sharedMaterial;
-                if (mat != null)
+                if (materialDataElement_sp.FindPropertyRelative("m_uvTiling").vector2Value != mat.mainTextureScale)
                 {
-                    float matTiling = mat.mainTextureScale.x;
-                    if (materialData_sp.FindPropertyRelative("m_uvTiling").floatValue != matTiling)
+                    // 기능 봉인 //
+                    //if (m_overrideMaterial_sp.boolValue)
+                    if (false)
                     {
-                        materialData_sp.FindPropertyRelative("m_uvTiling").floatValue = matTiling;
+                        // MoveToTrailUV 데이터를 기준으로 재질을 변경
+                        //mat.mainTextureScale = materialDataElement_sp.FindPropertyRelative("m_uvTiling").vector2Value;
+                    }
+                    else
+                    {
+                        // 재질을 기준으로 MoveToTrailUV 데이터를 변경
+                        materialDataElement_sp.FindPropertyRelative("m_uvTiling").vector2Value = mat.mainTextureScale;
                     }
                 }
             }
@@ -111,90 +122,21 @@ public class MoveToTrailUVEditor : Editor
     }
 
     // 에디터용 초기화 함수. Undo 등의 상황을 위해
-    private void InitializeEditor(bool valueChanged)
+    private void InitializeEditor()
     {
         if (m_materialData_sp.serializedObject.targetObject == null || m_materialData_sp.arraySize == 0)
             return;
 
         m_shaderPropertyID_sp.intValue = Shader.PropertyToID(m_shaderPropertyName_sp.stringValue);
 
-        // 렌더러 변경이 발생했는지 체크
-        // 먼저 Null과 숫자 체크
-        if (m_renderersBefore == null)
-        {
-            m_renderersBefore = new Renderer[1]; // 초기화가 안된 Null이면 아무거나 하나 채운다.
-        }
-        if (m_renderersBefore.Length != m_materialData_sp.arraySize)
-        {
-            // 숫자가 다르면
-            m_renderersBefore = new Renderer[m_materialData_sp.arraySize];
-            for (int i = 0; i < m_renderersBefore.Length; i++)
-            {
-                SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
-                Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
-                if (renderer == null)
-                {
-                    m_renderersBefore[i] = null;
-                }
-                else
-                {
-                    m_renderersBefore[i] = renderer;
-                }
-            }
-        }
-
         // m_materialData 초기화
         for (int i = 0; i < m_materialData_sp.arraySize; i++)
         {
-            SerializedProperty materialData_sp = m_materialData_sp.GetArrayElementAtIndex(i);
-            
+            SerializedProperty materialDataElement_sp = m_materialData_sp.GetArrayElementAtIndex(i);
+            SyncElementTiling(materialDataElement_sp); // Tiling만 동기화
+
             // m_move 값 초기화
-            materialData_sp.FindPropertyRelative("m_move").floatValue = 0f;
-
-            Renderer renderer = (Renderer)materialData_sp.FindPropertyRelative("m_renderer").objectReferenceValue;
-            // 렌더러가 존재하면
-            if (renderer != null)
-            {
-                bool rendererChanged = false;
-                if (m_renderersBefore[i] != renderer)
-                {
-                    // 전에 저장해둔 렌더러와 현재 렌더러가 다르면 변경 체크 후 저장본 업데이트
-                    rendererChanged = true;
-                    m_renderersBefore[i] = renderer;
-                }
-
-                // 렌더러가 사용하는 재질 Get
-                Material mat = renderer.sharedMaterial;
-                materialData_sp.FindPropertyRelative("m_material").objectReferenceValue = mat;
-                if (mat != null)
-                {
-                    if (valueChanged)
-                    {
-                        if (rendererChanged)
-                        {
-                            // 렌더러가 변경된 경우 재질 변경이 아닌 재질값을 다시 가져옴
-                            materialData_sp.FindPropertyRelative("m_uvTiling").floatValue = mat.mainTextureScale.x;
-                        }
-                        else
-                        {
-                            // 에디터 인스펙터에서 값이 변경된 경우 재질의 타일링 값을 변경
-                            Undo.RecordObject(mat, "MoveToTrailUV Material changed");
-                            Vector2 mainTextureScale = mat.mainTextureScale;
-                            mainTextureScale.x = materialData_sp.FindPropertyRelative("m_uvTiling").floatValue;
-                            mat.mainTextureScale = mainTextureScale;
-                        }
-                    }
-                    else
-                    {
-                        // 값의 변경이 아닌 단순 초기화
-                        materialData_sp.FindPropertyRelative("m_uvTiling").floatValue = mat.mainTextureScale.x;
-                    }
-                }
-            }
-            else
-            {
-                materialData_sp.FindPropertyRelative("m_material").objectReferenceValue = null;
-            }
+            materialDataElement_sp.FindPropertyRelative("m_move").floatValue = 0f;
         }
     }
 
@@ -206,9 +148,9 @@ public class MoveToTrailUVEditor : Editor
 
         for (int i = 0; i < m_mttuv.m_materialData.Length; i++)
         {
-            if (m_mttuv.m_materialData[i].m_renderer == null)
+            if (m_mttuv.m_materialData[i].m_trailRenderer == null)
                 continue;
-            TrailRenderer trailRenderer = (TrailRenderer)m_mttuv.m_materialData[i].m_renderer;
+            TrailRenderer trailRenderer = (TrailRenderer)m_mttuv.m_materialData[i].m_trailRenderer;
             if (trailRenderer.textureMode != LineTextureMode.Tile)
             {
                 return i;
@@ -224,9 +166,10 @@ public class MoveToTrailUVEditor : Editor
 
         for (int i = 0; i < m_mttuv.m_materialData.Length; i++)
         {
-            if (m_mttuv.m_materialData[i].m_renderer == null)
+            TrailRenderer trailRenderer = m_mttuv.m_materialData[i].m_trailRenderer;
+            if (trailRenderer == null)
                 continue;
-            Material mat = m_mttuv.m_materialData[i].m_material;
+            Material mat = trailRenderer.sharedMaterial;
             // 재질이 비었는지 검사
             if (mat == null)
             {
